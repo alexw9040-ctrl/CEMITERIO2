@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SIGCEM — Gestão de Cemitérios</title>
+<style>
+:root{--ink:#22313A;--bg:#F2F4F5;--panel:#fff;--line:#D5DBDF;--brand:#2B6A5E;--brand2:#1F4F46;--alert:#A8480B;--soft:#E3EFEC;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--ink:#E4EAED;--bg:#151C20;--panel:#1D262B;--line:#34434B;--brand:#4FA593;--brand2:#0F2B26;--alert:#F0A064;--soft:#22403A;color-scheme:dark}}
+*{box-sizing:border-box}html{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,"Segoe UI",Roboto,Arial,sans-serif}
+.app{display:flex;min-height:100vh}
+nav{background:var(--brand2);color:#fff;width:220px;padding:16px;flex:none}
+nav h1{font-size:18px;margin:0 0 14px}nav small{display:block;opacity:.75;font-weight:400;font-size:12px}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;padding:10px 12px;border-radius:6px;font:inherit;cursor:pointer}
+nav button:hover{background:rgba(255,255,255,.1)}nav button[aria-current=page]{background:rgba(255,255,255,.2)}
+main{flex:1;padding:20px;min-width:0}
+h2{margin:0 0 14px;font-size:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:14px}
+.big{font-size:30px;font-weight:600}
+button,input,select,textarea{font:inherit;color:inherit}
+.btn{background:var(--brand);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+.btn.sec{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.btn.sm{padding:4px 10px;font-size:13px}.btn.danger{background:var(--alert)}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.bar input[type=search]{max-width:300px}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.act{display:flex;gap:6px}tr.del td{opacity:.55;text-decoration:line-through}tr.del td.act{text-decoration:none;opacity:1}
+.badge{padding:2px 8px;border-radius:99px;background:var(--soft);font-size:12px}
+.bars{display:flex;align-items:flex-end;gap:6px;height:130px}.bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:12px}
+.bars i{display:block;width:100%;background:var(--brand);border-radius:3px 3px 0 0}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);width:min(520px,94vw);padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.45)}label{display:block;font-size:13px;margin-bottom:10px}
+.err{color:var(--alert);font-size:14px;min-height:20px}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--brand2);color:#fff;padding:10px 16px;border-radius:8px;display:none;z-index:9}
+.note{font-size:13px;opacity:.8}
+.login{min-height:100vh;display:grid;place-items:center;padding:16px}.login form{width:min(390px,100%)}
+.doc{display:flex;gap:8px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0;flex-wrap:wrap}
+@media(max-width:700px){.app{flex-direction:column}nav{width:100%;display:flex;gap:4px;flex-wrap:wrap;align-items:center}nav h1{width:100%;margin:0}nav button{width:auto}main{padding:14px}}
+</style>
+</head>
+<body>
+<div id="lg"></div>
+<div class="app">
+<nav aria-label="Menu principal"><h1>SIGCEM<small>Gestão de Cemitérios</small></h1><div id="menu" style="display:contents"></div></nav>
+<main id="main"></main>
+</div>
+<dialog id="dlg"><form method="dialog" id="frm"></form></dialog>
+<div id="toast" role="status"></div>
+<script>
+const KEY='sigcem-v1';
+let S={dec:[],gra:[],bur:[]};
+try{S=Object.assign(S,JSON.parse(localStorage.getItem(KEY))||{})}catch(e){}
+let tab='painel',q='',showDel=false;
+const $=s=>document.querySelector(s);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não foi possível salvar neste navegador.')}};
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3200)}
+const fd=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'—';
+const fdt=d=>d?new Date(d).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—';
+const LBL={disponivel:'Disponível',ocupada:'Ocupada',reservada:'Reservada',interditada:'Interditada',em_manutencao:'Em manutenção',em_regularizacao:'Em regularização'};
+const BLOCK=['interditada','em_manutencao','em_regularizacao'];
+const act=a=>a.filter(x=>!x.del);
+const occ=g=>act(S.bur).filter(b=>b.gra===g.id).length;
+const gst=g=>BLOCK.includes(g.status)?g.status:(occ(g)>=g.cap?'ocupada':g.status);
+const byId=(l,id)=>S[l].find(x=>x.id===id);
+const idade=d=>{if(!d.nasc||!d.falec)return '—';const n=new Date(d.nasc),f=new Date(d.falec);let a=f.getFullYear()-n.getFullYear();if(f.getMonth()<n.getMonth()||(f.getMonth()===n.getMonth()&&f.getDate()<n.getDate()))a--;return a};
+const dBur=d=>act(S.bur).find(b=>b.dec===d.id);
+
+const E={
+dec:{t:'Falecidos',one:'falecido',f:[['nome','Nome completo','text',1],['nasc','Data de nascimento','date'],['falec','Data de falecimento','date'],['cpf','CPF (opcional)','text'],['nat','Naturalidade','text'],['obs','Observações','textarea']],
+ c:[['Nome',d=>d.nome],['Falecimento',d=>fd(d.falec)],['Idade',idade],['Sepultura',d=>{const b=dBur(d);return b?byId('gra',b.gra)?.cod||'—':'—'}],['Certidão',d=>F.some(f=>f.dec===d.id&&f.kind==='obito')?'Anexada':'Pendente']],s:d=>d.nome+' '+(d.cpf||'')},
+gra:{t:'Sepulturas',one:'sepultura',f:[['cod','Código (ex.: Q1-001)','text',1],['quadra','Quadra','text'],['setor','Setor','text'],['cap','Capacidade','number',1],['status','Situação','select'],['obs','Observações','textarea']],
+ c:[['Código',g=>g.cod],['Quadra/Setor',g=>(g.quadra||'—')+' / '+(g.setor||'—')],['Situação',g=>'<span class="badge">'+LBL[gst(g)]+'</span>'],['Ocupantes',g=>occ(g)+'/'+g.cap]],s:g=>g.cod+' '+(g.quadra||'')+' '+(g.setor||''),raw:[2]},
+bur:{t:'Sepultamentos',one:'sepultamento',f:[['dec','Falecido','select',1],['gra','Sepultura','select',1],['dt','Data e hora','datetime-local',1],['funer','Empresa funerária','text'],['obs','Observações','textarea']],
+ c:[['Protocolo',b=>b.prot],['Falecido',b=>byId('dec',b.dec)?.nome||'—'],['Sepultura',b=>byId('gra',b.gra)?.cod||'—'],['Data e hora',b=>fdt(b.dt)]],s:b=>b.prot+' '+(byId('dec',b.dec)?.nome||'')+' '+(b.funer||'')}
+};
+
+function menu(){const items=[['painel','Painel'],['dec','Falecidos'],['gra','Sepulturas'],['bur','Sepultamentos']];if(can('admin'))items.push(['usr','Usuários']);items.push(['sair','Sair ('+ME.u+')']);
+ $('#menu').innerHTML=items.map(([k,l])=>`<button data-t="${k}" ${tab===k?'aria-current="page"':''}>${esc(l)}</button>`).join('');
+ $('#menu').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.t==='sair'){sessionStorage.removeItem('sigcem-sess');ME=null;tab='painel';return render()}tab=b.dataset.t;q='';showDel=false;render()})}
+
+function render(){if(!ME)return loginView();$('.app').style.display='flex';$('#lg').innerHTML='';menu();$('#main').innerHTML=tab==='painel'?painel():tab==='usr'?usersView():lista(tab);bind()}
+
+function painel(){const h=painel0();return can('admin')?h:h.replace(/<div class="card"><b>Dados e cópia[\s\S]*$/,'')}
+function painel0(){
+ const y=new Date().getFullYear(),m=Array(12).fill(0);
+ act(S.bur).forEach(b=>{const d=new Date(b.dt);if(d.getFullYear()===y)m[d.getMonth()]++});
+ const mx=Math.max(1,...m),st={};Object.keys(LBL).forEach(k=>st[k]=0);act(S.gra).forEach(g=>st[gst(g)]++);
+ const M=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+ const empty=!S.dec.length&&!S.gra.length;
+ return `<h2>Painel</h2>
+ ${empty?'<div class="card" style="margin-bottom:14px"><b>Comece cadastrando uma sepultura e um falecido.</b><p class="note">Ou carregue dados fictícios para conhecer o sistema.</p><button class="btn" id="demo">Carregar dados fictícios</button></div>':''}
+ <div class="grid"><div class="card">Falecidos<div class="big">${act(S.dec).length}</div></div><div class="card">Sepulturas<div class="big">${act(S.gra).length}</div></div><div class="card">Sepultamentos<div class="big">${act(S.bur).length}</div></div><div class="card">Vagas livres<div class="big">${act(S.gra).filter(g=>!BLOCK.includes(g.status)).reduce((a,g)=>a+Math.max(0,g.cap-occ(g)),0)}</div></div><div class="card">Certidões pendentes<div class="big">${act(S.dec).filter(d=>!F.some(f=>f.dec===d.id&&f.kind==='obito')).length}</div></div></div>
+ <div class="card" style="margin-bottom:14px"><b>Situação das sepulturas</b><div class="grid" style="margin:10px 0 0">${Object.entries(st).map(([k,v])=>`<div>${LBL[k]}: <b>${v}</b></div>`).join('')}</div></div>
+ <div class="card" style="margin-bottom:14px"><b>Sepultamentos por mês em ${y}</b><div class="bars" role="img" aria-label="Gráfico de sepultamentos por mês">${m.map((n,i)=>`<div>${n}<i style="height:${n/mx*100}%;min-height:${n?4:1}px"></i>${M[i]}</div>`).join('')}</div></div>
+ <div class="card"><b>Dados e cópia de segurança</b><p class="note">Os dados ficam salvos somente neste navegador. Exporte uma cópia com frequência (a cópia JSON não inclui os documentos anexados).</p>
+ <div class="bar" style="margin:0"><button class="btn sec" id="exp">Exportar cópia (JSON)</button><label class="btn sec" style="margin:0;cursor:pointer">Importar cópia<input type="file" id="imp" accept=".json" hidden></label><button class="btn sec" id="csv">Exportar falecidos (CSV)</button></div></div>`}
+
+function lista(k){
+ const e=E[k],ql=q.trim().toLowerCase();
+ const rows=S[k].filter(r=>!!r.del===showDel&&(!ql||e.s(r).toLowerCase().includes(ql)));
+ return `<h2>${e.t}</h2><div class="bar"><input type="search" id="q" placeholder="Pesquisar…" aria-label="Pesquisar" value="${esc(q)}">${can('edit')?`<button class="btn" id="new">Novo ${e.one}</button>`:''}${can('del')?`<label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="sd" style="width:auto" ${showDel?'checked':''}>Mostrar excluídos</label>`:''}</div>
+ <div class="card tw"><table><thead><tr>${e.c.map(c=>`<th>${c[0]}</th>`).join('')}<th>Ações</th></tr></thead><tbody>
+ ${rows.map(r=>`<tr class="${r.del?'del':''}">${e.c.map((c,i)=>`<td>${(e.raw||[]).includes(i)?c[1](r):esc(c[1](r))}</td>`).join('')}<td class="act">${acts(k,r)}</td></tr>`).join('')||`<tr><td colspan="${e.c.length+1}">${showDel?'Nenhum registro excluído.':'Nenhum registro. Use o botão “Novo '+e.one+'”.'}</td></tr>`}
+ </tbody></table></div>`}
+
+function acts(k,r){const b=(a,l,c='sec')=>`<button class="btn sm ${c}" data-a="${a}" data-id="${r.id}">${l}</button>`;
+ if(r.del)return can('del')?b('rest','Restaurar'):'';
+ return (k==='dec'?b('docs','Documentos'):'')+(can('edit')?b('edit','Editar'):'')+(can('del')?b('del','Excluir','danger'):'')}
+function bind(){
+ const g=id=>document.getElementById(id);userBind(g);
+ if(g('demo'))g('demo').onclick=demo;
+ if(g('exp'))g('exp').onclick=()=>dl('sigcem-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(S),'application/json');
+ if(g('imp'))g('imp').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if(!confirm('Substituir todos os dados atuais pela cópia importada?'))return;S={dec:d.dec||[],gra:d.gra||[],bur:d.bur||[]};save();render();toast('Cópia importada.')}catch(x){toast('Arquivo inválido.')}})};
+ if(g('csv'))g('csv').onclick=()=>dl('falecidos.csv','\ufeffNome;Nascimento;Falecimento;Idade;Sepultura\n'+act(S.dec).map(d=>[d.nome,fd(d.nasc),fd(d.falec),idade(d),dBur(d)?byId('gra',dBur(d).gra)?.cod:''].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv');
+ if(g('q'))g('q').oninput=e=>{q=e.target.value;const p=e.target.selectionStart;render();const n=g('q');n.focus();n.setSelectionRange(p,p)};
+ if(g('sd'))g('sd').onchange=e=>{showDel=e.target.checked;render()};
+ if(g('new'))g('new').onclick=()=>form(tab);
+ document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const id=b.dataset.id,a=b.dataset.a;a==='edit'?form(tab,id):a==='del'?del(tab,id):a==='docs'?docs(id):rest(tab,id)});
+}
+function dl(name,txt,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+function form(k,id){
+ const e=E[k],r=id?byId(k,id):{};
+ let fields=e.f;if(k==='bur'&&id)fields=e.f.filter(f=>['funer','obs'].includes(f[0]));
+ const opts=n=>{
+  if(n==='status')return Object.keys(LBL).filter(s=>s!=='ocupada').map(s=>[s,LBL[s]]);
+  if(n==='dec')return act(S.dec).filter(d=>!dBur(d)).map(d=>[d.id,d.nome]);
+  if(n==='gra')return act(S.gra).filter(g=>!BLOCK.includes(g.status)&&occ(g)<g.cap).map(g=>[g.id,g.cod+' ('+occ(g)+'/'+g.cap+')']);return[]};
+ $('#frm').innerHTML=`<h2>${id?'Editar':'Novo'} ${e.one}</h2>`+fields.map(([n,l,t,req])=>{
+  const v=r[n]??(n==='cap'?1:n==='status'?'disponivel':'');const rq=req?'required':'';
+  if(t==='select')return `<label>${l}<select name="${n}" ${rq}>${k!=='gra'?'<option value="">Selecione…</option>':''}${opts(n).map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${esc(b)}</option>`).join('')}</select></label>`;
+  if(t==='textarea')return `<label>${l}<textarea name="${n}" rows="2">${esc(v)}</textarea></label>`;
+  return `<label>${l}${req?' *':''}<input name="${n}" type="${t}" value="${esc(v)}" ${rq} ${t==='number'?'min="1" max="50"':''} ${t==='date'?'max="'+new Date().toISOString().slice(0,10)+'"':''}></label>`}).join('')+
+ `<p class="err" id="err" role="alert"></p><div class="bar" style="justify-content:flex-end;margin:0"><button type="button" class="btn sec" id="cx">Cancelar</button><button class="btn" id="ok">Salvar</button></div>`;
+ $('#cx').onclick=()=>$('#dlg').close();
+ $('#frm').onsubmit=ev=>{ev.preventDefault();
+  const d=Object.fromEntries(new FormData($('#frm')).entries());
+  Object.keys(d).forEach(n=>{if(typeof d[n]==='string')d[n]=d[n].trim()});
+  if(d.cap)d.cap=+d.cap;
+  const m=check(k,d,id);if(m){$('#err').textContent=m;return}
+  if(id){Object.assign(r,d);r.upd=new Date().toISOString()}
+  else{const n={id:uid(),cr:new Date().toISOString(),...d};if(k==='bur')create(n);S[k].push(n)}
+  save();$('#dlg').close();render();toast('Registro salvo.')};
+ $('#dlg').showModal();
+}
+function create(b){const y=new Date(b.dt).getFullYear();b.prot='SEP-'+y+'-'+String(S.bur.filter(x=>x.prot.startsWith('SEP-'+y)).length+1).padStart(6,'0')}
+function check(k,d,id){
+ const today=new Date().toISOString().slice(0,10);
+ if(k==='dec'){if(d.nome.length<3)return'Informe o nome completo.';if(d.nasc&&d.falec&&d.falec<d.nasc)return'A data de falecimento não pode ser anterior ao nascimento.';if(d.falec>today||d.nasc>today)return'A data não pode estar no futuro.';
+  if(d.cpf&&!cpf(d.cpf))return'CPF inválido.'}
+ if(k==='gra'){if(!d.cod)return'Informe o código.';if(S.gra.some(g=>g.id!==id&&g.cod.toLowerCase()===d.cod.toLowerCase()))return'Já existe uma sepultura com este código.';
+  if(!(d.cap>=1))return'Capacidade inválida.';const g=id&&byId('gra',id);if(g&&d.cap<occ(g))return'A capacidade não pode ser menor que o número de ocupantes ('+occ(g)+').'}
+ if(k==='bur'&&!id){const de=byId('dec',d.dec),g=byId('gra',d.gra);if(!de||!g)return'Selecione o falecido e a sepultura.';
+  if(dBur(de))return'Este falecido já possui sepultamento ativo.';if(BLOCK.includes(g.status))return'A sepultura está bloqueada.';if(occ(g)>=g.cap)return'A sepultura não possui vaga.';
+  if(de.falec&&d.dt.slice(0,10)<de.falec)return'A data do sepultamento é anterior ao falecimento.'}
+ return''}
+function cpf(v){const d=v.replace(/\D/g,'');if(d.length!==11||/^(\d)\1+$/.test(d))return false;for(let t=9;t<11;t++){let s=0;for(let i=0;i<t;i++)s+=+d[i]*(t+1-i);if((s*10%11)%10!==+d[t])return false}return true}
+
+function del(k,id){const r=byId(k,id);
+ if(k==='dec'&&dBur(r))return alert('Este falecido possui sepultamento ativo. Exclua o sepultamento primeiro.');
+ if(k==='gra'&&occ(r))return alert('Esta sepultura possui sepultamento ativo. Exclua o sepultamento primeiro.');
+ if(!confirm('Excluir este registro? Ele poderá ser restaurado depois.'))return;
+ r.del=new Date().toISOString();save();render();toast('Registro excluído. Use “Mostrar excluídos” para restaurar.')}
+function rest(k,id){const r=byId(k,id);
+ if(k==='bur'){const d=byId('dec',r.dec),g=byId('gra',r.gra);
+  if(!d||d.del||!g||g.del)return alert('O falecido ou a sepultura está excluído(a). Restaure-o(a) antes.');
+  if(dBur(d)||occ(g)>=g.cap||BLOCK.includes(g.status))return alert('Não é possível restaurar: a vaga foi ocupada ou a sepultura está bloqueada.')}
+ delete r.del;save();render();toast('Registro restaurado.')}
+
+function demo(){const g=[];for(const q of[1,2])for(let n=1;n<=4;n++)g.push({id:uid(),cod:`Q${q}-00${n}`,quadra:'Q'+q,setor:'A',cap:2,status:'disponivel'});
+ const d=[['José Exemplo de Souza (fictício)','1940-05-10','2024-03-02'],['Maria Modelo Lima (fictícia)','1951-11-23','2024-07-15']].map(x=>({id:uid(),nome:x[0],nasc:x[1],falec:x[2]}));
+ S.gra=g;S.dec=d;
+ d.forEach((x,i)=>{const b={id:uid(),dec:x.id,gra:g[i].id,dt:x.falec+'T10:00'};create(b);S.bur.push(b)});
+ save();render();toast('Dados fictícios carregados.')}
+/* ===== Login, usuários e documentos ===== */
+let ME=null,F=[],DB;
+const UK='sigcem-users',ROLE={admin:'Administrador',operador:'Operador',consulta:'Consulta'};
+const U=()=>{try{return JSON.parse(localStorage.getItem(UK))||[]}catch(e){return[]}};
+const saveU=u=>localStorage.setItem(UK,JSON.stringify(u));
+const can=a=>!ME?false:(a==='admin'||a==='del')?ME.role==='admin':a==='edit'?ME.role!=='consulta':false;
+const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b)));
+const unb64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+async function hp(pw,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);return b64(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:150000},k,256))}
+async function mkUser(u,name,role,pw){const salt=crypto.getRandomValues(new Uint8Array(16));return{u,name,role,salt:b64(salt),hash:await hp(pw,salt)}}
+const pwErr=p=>p.length<10?'A senha deve ter pelo menos 10 caracteres.':(!/[A-Za-z]/.test(p)||!/\d/.test(p))?'A senha deve conter letras e números.':'';
+const uErr=u=>/^[a-z0-9._-]{3,30}$/.test(u)?'':'Usuário: 3 a 30 caracteres (letras minúsculas, números, ponto, hífen ou _).';
+function enter(u){ME={u:u.u,name:u.name,role:u.role};sessionStorage.setItem('sigcem-sess',u.u);tab='painel';render()}
+
+function loginView(){
+ $('.app').style.display='none';const first=!U().length;
+ $('#lg').innerHTML=`<div class="login"><form class="card" id="lf"><h2>SIGCEM</h2><p class="note">${first?'Primeiro acesso: crie o administrador do sistema.':'Entre com seu usuário e senha.'}</p>${first?'<label>Nome completo<input name="name" required minlength="3"></label>':''}<label>Usuário<input name="u" required autocomplete="username" autocapitalize="none"></label><label>Senha${first?' (mínimo 10 caracteres, com letras e números)':''}<input name="p" type="password" required autocomplete="${first?'new-password':'current-password'}"></label><p class="err" id="le" role="alert"></p><button class="btn" style="width:100%">${first?'Criar administrador':'Entrar'}</button></form></div>`;
+ $('#lf').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target)),u=f.u.trim().toLowerCase(),err=$('#le');
+  try{
+   if(first){const m=uErr(u)||pwErr(f.p);if(m){err.textContent=m;return}const nu=await mkUser(u,f.name.trim(),'admin',f.p);saveU([nu]);return enter(nu)}
+   if(Date.now()<(+localStorage.getItem('sigcem-lock')||0)){err.textContent='Muitas tentativas. Aguarde um minuto.';return}
+   const us=U().find(x=>x.u===u),ok=us&&await hp(f.p,unb64(us.salt))===us.hash;
+   if(!ok){const n=(+localStorage.getItem('sigcem-fail')||0)+1;localStorage.setItem('sigcem-fail',n>=5?0:n);if(n>=5)localStorage.setItem('sigcem-lock',Date.now()+60000);err.textContent='Usuário ou senha inválidos.';return}
+   localStorage.setItem('sigcem-fail',0);enter(us)
+  }catch(x){err.textContent='Este navegador não permite o login seguro. Use uma conexão https.'}}}
+
+function usersView(){return `<h2>Usuários</h2><div class="bar"><button class="btn" id="nu">Novo usuário</button></div><div class="card tw"><table><thead><tr><th>Usuário</th><th>Nome</th><th>Perfil</th><th>Ações</th></tr></thead><tbody>${U().map(x=>`<tr><td>${esc(x.u)}</td><td>${esc(x.name)}</td><td>${ROLE[x.role]}</td><td class="act">${x.u===ME.u?'<span class="note">você</span>':`<button class="btn sm sec" data-ua="pw" data-u="${esc(x.u)}">Nova senha</button><button class="btn sm danger" data-ua="rm" data-u="${esc(x.u)}">Remover</button>`}</td></tr>`).join('')}</tbody></table></div>
+ <p class="note">Perfis: <b>Administrador</b> faz tudo; <b>Operador</b> cadastra, edita e anexa documentos; <b>Consulta</b> apenas visualiza. O login funciona somente neste navegador e impede o uso casual; não protege contra quem tem acesso técnico ao computador.</p>`}
+function userBind(g){
+ if(g('nu'))g('nu').onclick=userForm;
+ document.querySelectorAll('[data-ua]').forEach(b=>b.onclick=()=>{const u=b.dataset.u;
+  if(b.dataset.ua==='rm'){if(confirm('Remover o usuário '+u+'?')){saveU(U().filter(x=>x.u!==u));render();toast('Usuário removido.')}}
+  else pwDlg('Nova senha de '+esc(u),async pw=>{const us=U(),x=us.find(y=>y.u===u),n=await mkUser(u,x.name,x.role,pw);Object.assign(x,n);saveU(us);toast('Senha alterada.')})})}
+const BTNS='<p class="err" id="err" role="alert"></p><div class="bar" style="justify-content:flex-end;margin:0"><button type="button" class="btn sec" id="cx">Cancelar</button><button class="btn">Salvar</button></div>';
+function pwDlg(title,fn){$('#frm').innerHTML=`<h2>${title}</h2><label>Nova senha (mínimo 10 caracteres, com letras e números)<input type="password" id="np" autocomplete="new-password"></label>`+BTNS;
+ $('#cx').onclick=()=>$('#dlg').close();$('#frm').onsubmit=async e=>{e.preventDefault();const m=pwErr($('#np').value);if(m){$('#err').textContent=m;return}await fn($('#np').value);$('#dlg').close();render()};$('#dlg').showModal()}
+function userForm(){$('#frm').innerHTML=`<h2>Novo usuário</h2><label>Nome completo<input id="un"></label><label>Usuário<input id="uu" autocapitalize="none"></label><label>Perfil<select id="ur">${Object.entries(ROLE).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label><label>Senha<input type="password" id="up2" autocomplete="new-password"></label>`+BTNS;
+ $('#cx').onclick=()=>$('#dlg').close();
+ $('#frm').onsubmit=async e=>{e.preventDefault();const name=$('#un').value.trim(),u=$('#uu').value.trim().toLowerCase(),pw=$('#up2').value;
+  const m=name.length<3?'Informe o nome completo.':uErr(u)||(U().some(x=>x.u===u)?'Este usuário já existe.':'')||pwErr(pw);if(m){$('#err').textContent=m;return}
+  saveU([...U(),await mkUser(u,name,$('#ur').value,pw)]);$('#dlg').close();render();toast('Usuário criado.')};$('#dlg').showModal()}
+
+/* Documentos dos falecidos: arquivos ficam no IndexedDB do navegador */
+const idb=()=>new Promise((res,rej)=>{if(DB)return res(DB);const r=indexedDB.open('sigcem-files',1);r.onupgradeneeded=()=>r.result.createObjectStore('f',{keyPath:'id'});r.onsuccess=()=>{DB=r.result;res(DB)};r.onerror=()=>rej(r.error)});
+const tx=async(mode,fn)=>{const db=await idb();return new Promise((res,rej)=>{const t=db.transaction('f',mode),r=fn(t.objectStore('f'));t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})};
+const loadF=async()=>{try{F=(await tx('readonly',s=>s.getAll()))||[]}catch(e){F=[]}};
+async function sniff(file){const b=new Uint8Array(await file.slice(0,4).arrayBuffer()),h=[...b].map(x=>x.toString(16).padStart(2,'0')).join('');
+ return h.startsWith('25504446')?'application/pdf':h.startsWith('89504e47')?'image/png':h.startsWith('ffd8ff')?'image/jpeg':''}
+function docs(id){
+ const d=byId('dec',id),list=()=>F.filter(f=>f.dec===id).sort((a,b)=>b.at.localeCompare(a.at)),KL={obito:'Certidão de óbito',outro:'Outro documento'};
+ const paint=()=>{
+  $('#frm').innerHTML=`<h2>Documentos — ${esc(d.nome)}</h2>`+(list().map(f=>`<div class="doc"><span><b>${KL[f.kind]}</b><br><small class="note">${esc(f.name)} · ${Math.max(1,Math.round(f.size/1024))} KB · ${fdt(f.at)} · por ${esc(f.by)}</small></span><span class="bar" style="margin:0"><button type="button" class="btn sm sec" data-v="${f.id}">Ver</button><button type="button" class="btn sm sec" data-b="${f.id}">Baixar</button>${can('del')?`<button type="button" class="btn sm danger" data-x="${f.id}">Excluir</button>`:''}</span></div>`).join('')||'<p class="note">Nenhum documento anexado.</p>')+
+  (can('edit')?`<label style="margin-top:12px">Tipo<select id="dk"><option value="obito">Certidão de óbito</option><option value="outro">Outro documento</option></select></label><label>Arquivo (PDF, JPG ou PNG, até 5 MB)<input type="file" id="df" accept=".pdf,.jpg,.jpeg,.png"></label>`:'')+
+  `<p class="err" id="err" role="alert"></p><div class="bar" style="justify-content:flex-end;margin:0"><button type="button" class="btn sec" id="cx">Fechar</button>${can('edit')?'<button type="button" class="btn" id="up">Anexar</button>':''}</div>`;
+  $('#frm').onsubmit=e=>e.preventDefault();
+  $('#cx').onclick=()=>{$('#dlg').close();render()};
+  const get=i=>F.find(f=>f.id===i);
+  $('#frm').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{const u=URL.createObjectURL(get(b.dataset.v).blob);window.open(u,'_blank');setTimeout(()=>URL.revokeObjectURL(u),60000)});
+  $('#frm').querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>{const f=get(b.dataset.b);dl(f.name,f.blob,f.type)});
+  $('#frm').querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{if(!confirm('Excluir este documento definitivamente?'))return;try{await tx('readwrite',s=>s.delete(b.dataset.x));F=F.filter(f=>f.id!==b.dataset.x);paint()}catch(e){$('#err').textContent='Não foi possível excluir.'}});
+  if($('#up'))$('#up').onclick=async()=>{const err=$('#err'),file=$('#df').files[0];err.textContent='';
+   if(!file){err.textContent='Escolha um arquivo.';return}if(file.size>5*1024*1024){err.textContent='O arquivo excede 5 MB.';return}
+   const mime=await sniff(file);if(!mime){err.textContent='Tipo de arquivo não aceito. Envie PDF, JPG ou PNG.';return}
+   const rec={id:uid(),dec:id,kind:$('#dk').value,name:file.name.slice(0,120),type:mime,size:file.size,at:new Date().toISOString(),by:ME.u,blob:new Blob([file],{type:mime})};
+   try{await tx('readwrite',s=>s.put(rec));F.push(rec);paint();toast('Documento anexado.')}catch(e){err.textContent='Não foi possível salvar o arquivo neste navegador (armazenamento cheio ou bloqueado).'}}};
+ paint();$('#dlg').showModal()}
+
+(async()=>{await loadF();const s=sessionStorage.getItem('sigcem-sess'),us=U().find(x=>x.u===s);if(us)ME={u:us.u,name:us.name,role:us.role};render()})();
+</script>
+</body>
+</html>
